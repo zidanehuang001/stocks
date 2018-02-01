@@ -113,7 +113,7 @@ def _add_amount_to_a_stock(stock):
     count = 0
     while True:
         try:
-            new_data  =  ts.get_h_data(stock,start='2005-01-21',end='2017-08-15')
+            new_data  =  ts.get_h_data(stock,start='2005-01-21',end='2018-02-02')
             break;
         except Exception,e:
             count = count+1
