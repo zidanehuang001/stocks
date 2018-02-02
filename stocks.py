@@ -34,8 +34,11 @@ logging.getLogger('').addHandler(console)
 engine_stocks_info = create_engine('mysql://root:123321@127.0.0.1/stocks_info?charset=utf8')
 #所有股票历史数据数据库
 engine_stocks_hist = create_engine('mysql://root:123321@127.0.0.1/stocks_hist?charset=utf8')
+#所有股票历史就数据库-新接口-bar
+engine_stocks_hist_bar = create_engine('mysql://root:123321@127.0.0.1/stocks_hist_bar?charset=utf8')
 conn_hist = engine_stocks_hist.connect()
 conn_info = engine_stocks_info.connect()
+conn_hist_bar = engine_stocks_hist_bar.connect()
 
 
 def store_stocks_hist(stock_code):
@@ -45,15 +48,14 @@ def store_stocks_hist(stock_code):
     :return:
     """
     try:
-        df = ts.get_hist_data(stock_code,)
-        df.to_sql(stock_code, engine_stocks_hist,if_exists='replace',dtype={'date':types.DATETIME})
+        df = ts.bar(code=stock_code,start_date='2015-01-21',end_date='2017-09-15')
+        df.to_sql(stock_code, engine_stocks_hist_bar,if_exists='replace',dtype={'date':types.DATETIME})
+        logging.info("code "+stock_code+" has been added")
     except StandardError,e:
         print e
         print stock_code
         raise e
 
-def store_get_stocks_hist():
-    pass
 
 
 def store_stocks_list():
@@ -74,13 +76,24 @@ def store_stock_hist_day_list():
     :return:
     """
     List = get_stocks_info()
+
+    #get current updated List
+    rawsql = 'SELECT TABLE_NAME FROM  information_schema.TABLES WHERE TABLE_SCHEMA = "stocks_hist_bar"'
+    sql = text(rawsql)
+    currentList = conn_hist_bar.execute(sql).fetchall()
+    #end get current updated List
+
     while len(List)!=0:
         for stock in List:
             try:
-               store_stocks_hist(stock[0])
-               logging.info("data of "+stock[0]+" has been download!")
-               List.remove(stock)
-               logging.info( "the list has "+str(len(List))+" left")
+                if (stock[0],) in currentList:
+                    logging.info("stock "+stock[0]+" has been skiped!")
+                    List.remove(stock)
+                    continue
+                store_stocks_hist(stock[0])
+                logging.info("data of "+stock[0]+" has been download!")
+                List.remove(stock)
+                logging.info( "the list has "+str(len(List))+" left")
             except StandardError,e:
                 print logging.stock[0]+" has been failed"
 
@@ -94,11 +107,18 @@ def add_amount_to_hist_tables():
     while len(List)!=0:
         for stock in List:
             try:
-                get_sotcks_hist(stock[0])
-                _add_amount_to_a_stock(stock[0])
-                List.remove(stock)
-                logging.info("data of amount "+stock[0]+" has been add")
-                logging.info("the list has "+str(len(List))+" left")
+                rawsql = "SELECT amount FROM stocks_hist.`"+stock[0]+"`"
+                sql = text(rawsql)
+                amount = conn_hist.execute(sql).fetchall()
+
+                if len(amount)==0:
+                    _add_amount_to_a_stock(stock[0])
+                    List.remove(stock)
+                    logging.info("data of amount "+stock[0]+" has been add")
+                    logging.info("the list has "+str(len(List))+" left")
+                else:
+                    List.remove(stock)
+                    logging.info("skip "+ stock[0])
             except Exception,e:
                 logging.warning(stock[0]+" has been failed")
 
@@ -113,7 +133,11 @@ def _add_amount_to_a_stock(stock):
     count = 0
     while True:
         try:
+<<<<<<< HEAD
             new_data  =  ts.get_h_data(stock,start='2005-01-21',end='2018-02-02')
+=======
+            new_data  =  ts.bar(stock,start_date='2014-08-18',end_date='2017-08-15')
+>>>>>>> 16859fac30a5aae0f6ca69f5c8060a33d60e7666
             break;
         except Exception,e:
             count = count+1
@@ -149,7 +173,7 @@ def add_colums_to_hist_tables(column):
         for stock in List:
             try:
                 List.remove(stock)
-                rawsql = "ALTER TABLE stocks_hist."+stock[0]+" ADD "+column+" varchar(30)"
+                rawsql = "ALTER TABLE stocks_hist_bar."+stock[0]+" ADD "+column+" varchar(30)"
                 sql = text(rawsql)
                 conn_hist.execute(sql)
                 logging.info( "data of amount "+stock[0]+" has been add")
@@ -164,6 +188,20 @@ def get_stocks_info(code=None):
     :return:
     """
     rawsql = "SELECT * FROM stocks_info.stocks_list WHERE "
+    if code != None:
+        rawsql = rawsql + "code=:code"
+    else:
+        rawsql = rawsql + "1=1"
+    sql = text(rawsql)
+    return conn_info.execute(sql, code=code).fetchall()
+
+def get_stocks_info_from_bar(code=None):
+    """
+    根据股票代码获取信息(bar数据)
+    :param code: if the stock_code is blank,fetch all
+    :return:
+    """
+    rawsql = "SELECT * FROM stocks_info.stocks_bar_list WHERE "
     if code != None:
         rawsql = rawsql + "code=:code"
     else:
@@ -186,14 +224,17 @@ if __name__ == '__main__':
     #  data  =  ts.get_h_data('000001',start='2017-04-30',end='2017-08-30')
     #  print data
     # print data.iloc[0,5]
-    #add_colums_to_hist_tables()
+    #add_colums_to_hist_tables("volumn")
     # while True:
     #     try:
+
     add_amount_to_hist_tables()
-    #     except Exception,e:
-    #         print "failed"
-    # print get_stocks_info('000001')
-    # print ts.get_day_all('2017-06-30')
+
+    #store_stock_hist_day_list()
+
+
+    #print ts.bar(code="000001",start_date='2017-05-21',end_date='2017-09-15')
+
 
     # '''
     # flush index
@@ -203,3 +244,6 @@ if __name__ == '__main__':
     #     store_stocks_hist(index)
 
 
+#   data of amount 002726 has been add
+# root        : INFO     the list has 2053 left
+# root        : INFO     starting doing stock 603998 .......
